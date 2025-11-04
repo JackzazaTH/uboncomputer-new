@@ -1,0 +1,7 @@
+'use client';
+import React from 'react';
+import CareersPage from '../../components/CareersPage';
+
+export default function Careers() {
+  return <CareersPage />;
+}

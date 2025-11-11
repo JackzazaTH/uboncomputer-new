@@ -1,0 +1,1198 @@
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Product, Category, Article, ComputerSetGroup, HeroSlide, ComputerSetProduct, SeoData, SeoEditablePage, HomepageContent, AllCategoryPageData, ProductCategory, CategoryPageData, Page, DiscountCode, AdminOrder, AdminOrderStatus, CareersPageContent, CareersFeatureCard, JobOpening, ComputerSetSpecs } from '../types';
+import { LogOut, ShoppingCart, Tv, Newspaper, Image as ImageIcon, PlusCircle, Edit, Trash2, X, ChevronDown, ChevronUp, Globe, Home, Search, LayoutGrid, Percent, Menu, Package, Briefcase, Save, Users, TrendingUp, Coffee, ToggleLeft, ToggleRight, Gamepad2, ShoppingBag, AlertTriangle } from 'lucide-react';
+import ProductForm from './ProductForm';
+import ImageUpload from './ImageUpload';
+import HomepageManagement from './HomepageManagement';
+import { useToast } from '../hooks/useToast';
+import { categoryConfigurations } from '../categoryConfig';
+
+// Generic Modal Component
+export const Modal: React.FC<{ children: React.ReactNode, title: string, onClose: () => void, size?: 'lg' | '2xl' | '4xl' }> = ({ children, title, onClose, size = '2xl' }) => {
+    useEffect(() => {
+        const handleEsc = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
+    const sizeClasses = {
+        'lg': 'max-w-lg',
+        '2xl': 'max-w-2xl',
+        '4xl': 'max-w-4xl'
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex justify-center items-center p-4 animate-fade-in" onClick={onClose}>
+        <div className={`bg-white rounded-lg shadow-xl w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col animate-slide-in-up`} onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center p-4 border-b">
+            <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+            <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 transition-colors"><X size={20} /></button>
+          </div>
+          <div className="overflow-y-auto p-6">
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+};
+
+// Generic Form Input
+export const FormInput: React.FC<{label: string, name: string, value: string | number, onChange: (e: React.ChangeEvent<any>) => void, type?: string, required?: boolean, as?: 'textarea'}> = 
+({ label, name, value, onChange, type = 'text', required = true, as }) => (
+    <div>
+        <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>
+        {as === 'textarea' ? (
+             <textarea name={name} id={name} value={value} onChange={onChange} required={required} rows={as === 'textarea' && name === 'content' ? 10 : 3} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 bg-white text-gray-900" />
+        ) : (
+             <input type={type} name={name} id={name} value={value} onChange={onChange} required={required} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 bg-white text-gray-900" />
+        )}
+    </div>
+);
+
+
+// Interfaces for props
+interface AdminPageProps {
+  products: Product[];
+  categories: Category[];
+  articles: Article[];
+  computerSetGroups: ComputerSetGroup[];
+  heroSlides: HeroSlide[];
+  seoData: SeoData;
+  homepageContent: HomepageContent;
+  categoryPageData: AllCategoryPageData;
+  discountCodes: DiscountCode[];
+  adminOrders: AdminOrder[];
+  careersPageContent: CareersPageContent;
+  onSaveProduct: (product: Product) => void;
+  onDeleteProduct: (productId: number) => void;
+  onSaveArticle: (article: Article) => void;
+  onDeleteArticle: (articleId: number) => void;
+  onSaveHeroSlide: (slide: HeroSlide) => void;
+  onDeleteHeroSlide: (slideId: number) => void;
+  onSaveComputerSetGroup: (group: ComputerSetGroup) => void;
+  onDeleteComputerSetGroup: (groupId: number) => void;
+  onSaveSeoData: (seoData: SeoData) => void;
+  onSaveHomepageContent: (content: HomepageContent) => void;
+  onSaveCategoryPageData: (data: AllCategoryPageData) => void;
+  onSaveDiscountCode: (code: DiscountCode) => void;
+  onDeleteDiscountCode: (codeId: number) => void;
+  onSaveAdminOrder: (order: AdminOrder) => void;
+  onDeleteAdminOrder: (orderId: number) => void;
+  onSaveCareersPageContent: (content: CareersPageContent) => void;
+  onResetAllData: () => void;
+  onLogout: () => void;
+}
+
+type AdminSection = 'homepage' | 'products' | 'orders' | 'computerSets' | 'articles' | 'hero' | 'seo' | 'categoryPages' | 'discounts' | 'careers';
+
+const ManagementPanel: React.FC<{title: string, onAddNew?: () => void, children: React.ReactNode}> = ({ title, onAddNew, children }) => (
+    <div className="p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 shrink-0">{title}</h2>
+            {onAddNew && (
+                <button
+                    onClick={onAddNew}
+                    className="flex items-center justify-center w-full sm:w-auto bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                    <PlusCircle className="w-5 h-5 mr-2" />
+                    เพิ่มใหม่
+                </button>
+            )}
+        </div>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+            {children}
+        </div>
+    </div>
+);
+
+// Generic Form with Save/Cancel buttons
+export const FormWrapper: React.FC<{onSave: () => void, onCancel: () => void, children: React.ReactNode}> = ({ onSave, onCancel, children }) => (
+    <form onSubmit={(e) => { e.preventDefault(); onSave(); }}>
+        <div className="space-y-4">{children}</div>
+        <div className="mt-6 flex justify-end space-x-3">
+            <button type="button" onClick={onCancel} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">ยกเลิก</button>
+            <button type="submit" className="bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600">บันทึก</button>
+        </div>
+    </form>
+);
+
+
+// Sub-components for each management section
+const ProductManagement: React.FC<{ products: Product[], categories: Category[], onEdit: (p: Product) => void, onDelete: (id: number) => void }> = ({ products, categories, onEdit, onDelete }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [selectedBrand, setSelectedBrand] = useState('all');
+    const [sortOption, setSortOption] = useState('default');
+
+    useEffect(() => {
+        setSelectedBrand('all');
+    }, [selectedCategory]);
+
+    const availableBrands = useMemo(() => {
+        let sourceProducts = products;
+        if (selectedCategory !== 'all') {
+            sourceProducts = products.filter(p => p.category === selectedCategory);
+        }
+        return [...new Set(sourceProducts.map(p => p.brand).filter(Boolean))].sort();
+    }, [products, selectedCategory]);
+
+    const processedProducts = useMemo(() => {
+        let filtered = [...products];
+        if (selectedCategory !== 'all') {
+            filtered = filtered.filter(p => p.category === selectedCategory);
+        }
+        if (selectedBrand !== 'all') {
+            filtered = filtered.filter(p => p.brand === selectedBrand);
+        }
+        if (searchTerm) {
+            filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+        switch (sortOption) {
+            case 'price_asc': filtered.sort((a, b) => a.price - b.price); break;
+            case 'price_desc': filtered.sort((a, b) => b.price - a.price); break;
+            case 'stock_asc': filtered.sort((a, b) => a.stock - b.stock); break;
+            case 'stock_desc': filtered.sort((a, b) => b.stock - a.stock); break;
+            default: break;
+        }
+        return filtered;
+    }, [products, searchTerm, selectedCategory, selectedBrand, sortOption]);
+
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+    
+    const commonSelectClasses = "block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed";
+
+    return (
+        <>
+            <div className="p-4 bg-gray-50/80 border-b border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-400" /></div>
+                        <input type="text" placeholder="ค้นหาสินค้า..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"/>
+                    </div>
+                     <div>
+                        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className={commonSelectClasses}>
+                            <option value="all">ทุกหมวดหมู่</option>
+                            {categories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)} disabled={availableBrands.length === 0} className={commonSelectClasses}>
+                            <option value="all">ทุกแบรนด์</option>
+                            {availableBrands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                         <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} className={commonSelectClasses}>
+                            <option value="default">เรียงลำดับเริ่มต้น</option>
+                            <option value="price_asc">ราคา: น้อยไปมาก</option>
+                            <option value="price_desc">ราคา: มากไปน้อย</option>
+                            <option value="stock_asc">สต็อก: น้อยไปมาก</option>
+                            <option value="stock_desc">สต็อก: มากไปน้อย</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="md:hidden divide-y divide-gray-200">
+                {processedProducts.map(p => (
+                    <div key={p.id} className="p-4">
+                        <div className="flex items-start gap-4">
+                            <img className="h-16 w-16 rounded-md object-cover flex-shrink-0" src={p.imageUrls[0]} alt={p.name} />
+                            <div className="flex-grow min-w-0">
+                                <p className="text-sm font-bold text-gray-900 line-clamp-2">{p.name}</p>
+                                <p className="text-xs text-gray-500">{p.category}</p>
+                                <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(p.price)}</p>
+                            </div>
+                            <div className="flex flex-col items-center gap-2">
+                                <button onClick={() => onEdit(p)} className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full"><Edit className="w-5 h-5" /></button>
+                                <button onClick={() => onDelete(p.id)} className="p-2 text-red-600 hover:bg-gray-100 rounded-full"><Trash2 className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-gray-100 p-2 rounded">
+                                <p className="font-semibold text-gray-500">ต้นทุน</p>
+                                <p className="font-medium text-gray-800">{formatCurrency(p.costPrice)}</p>
+                            </div>
+                            <div className="bg-gray-100 p-2 rounded">
+                                <p className="font-semibold text-gray-500">สต็อก</p>
+                                <p className="font-medium text-gray-800">{p.stock}</p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="overflow-x-auto hidden md:block">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ราคาต้นทุน</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ราคาขาย</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สต็อก</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {processedProducts.map(p => (
+                            <tr key={p.id}>
+                                <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center"><div className="flex-shrink-0 h-10 w-10"><img className="h-10 w-10 rounded-md object-cover" src={p.imageUrls[0]} alt={p.name} /></div><div className="ml-4"><div className="text-sm font-medium text-gray-900">{p.name}</div><div className="text-sm text-gray-500">{p.category}</div></div></div></td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{formatCurrency(p.costPrice)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{formatCurrency(p.price)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{p.stock}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button onClick={() => onEdit(p)} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit className="w-5 h-5" /></button><button onClick={() => onDelete(p.id)} className="text-red-600 hover:text-red-900"><Trash2 className="w-5 h-5" /></button></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            
+            {processedProducts.length === 0 && <div className="text-center p-8 text-gray-500">ไม่พบสินค้าที่ตรงกับเกณฑ์การค้นหา</div>}
+        </>
+    );
+};
+
+const ArticleManagement: React.FC<{ articles: Article[], onSave: (a: Article) => void, onDelete: (id: number) => void }> = ({ articles, onSave, onDelete }) => {
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+
+    const handleEdit = (article: Article) => { setEditingArticle(article); setModalOpen(true); };
+    const handleAdd = () => { setEditingArticle(null); setModalOpen(true); };
+    const handleClose = () => setModalOpen(false);
+    const handleSave = (article: Article) => { onSave(article); handleClose(); };
+    
+    return (
+        <ManagementPanel title="บทความทั้งหมด" onAddNew={handleAdd}>
+            {/* Mobile View */}
+            <div className="md:hidden divide-y divide-gray-200">
+                {articles.map(a => (
+                    <div key={a.id} className="p-4 flex justify-between items-center gap-4">
+                        <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{a.title}</p>
+                            <p className="text-sm text-gray-500">{a.date}</p>
+                        </div>
+                        <div className="flex items-center flex-shrink-0">
+                            <button onClick={() => handleEdit(a)} className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => onDelete(a.id)} className="p-2 text-red-600 hover:bg-gray-100 rounded-full"><Trash2 className="w-5 h-5" /></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {/* Desktop View */}
+            <div className="overflow-x-auto hidden md:block">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">หัวข้อ</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th></tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">{articles.map(a => (<tr key={a.id}>
+                        <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{a.title}</div></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{a.date}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button onClick={() => handleEdit(a)} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit className="w-5 h-5" /></button><button onClick={() => onDelete(a.id)} className="text-red-600 hover:text-red-900"><Trash2 className="w-5 h-5" /></button></td></tr>))}
+                    </tbody>
+                </table>
+            </div>
+            {modalOpen && <ArticleForm article={editingArticle} onSave={handleSave} onClose={handleClose} />}
+        </ManagementPanel>
+    );
+};
+
+const ArticleForm: React.FC<{ article: Article | null, onSave: (a: Article) => void, onClose: () => void }> = ({ article, onSave, onClose }) => {
+    const [formState, setFormState] = useState<Omit<Article, 'id' | 'link'>>({ date: '', title: '', excerpt: '', imageUrl: '', content: '', ...article });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFormState({ ...formState, [e.target.name]: e.target.value });
+    const handleImageChange = (base64: string) => setFormState({ ...formState, imageUrl: base64 });
+    const handleSave = () => onSave({ ...formState, id: article?.id || 0, link: '#' });
+
+    return <Modal title={article ? 'แก้ไขบทความ' : 'เพิ่มบทความใหม่'} onClose={onClose}>
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <FormInput label="หัวข้อ" name="title" value={formState.title} onChange={handleChange} />
+            <FormInput label="วันที่ (เช่น 01 ม.ค. 2568)" name="date" value={formState.date} onChange={handleChange} />
+            <FormInput label="เนื้อหาย่อ" name="excerpt" value={formState.excerpt} onChange={handleChange} as="textarea" />
+            <FormInput label="เนื้อหาเต็ม" name="content" value={formState.content} onChange={handleChange} as="textarea" />
+            <ImageUpload label="รูปภาพประกอบ" currentImages={formState.imageUrl ? [formState.imageUrl] : []} onImagesChange={(imgs) => handleImageChange(imgs[0] || '')} maxImages={1} />
+        </FormWrapper>
+    </Modal>;
+};
+
+const HeroSlideManagement: React.FC<{ slides: HeroSlide[], onSave: (s: HeroSlide) => void, onDelete: (id: number) => void }> = ({ slides, onSave, onDelete }) => {
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null);
+
+    const handleEdit = (slide: HeroSlide) => { setEditingSlide(slide); setModalOpen(true); };
+    const handleAdd = () => { setEditingSlide(null); setModalOpen(true); };
+    const handleClose = () => setModalOpen(false);
+    const handleSave = (slide: HeroSlide) => { onSave(slide); handleClose(); };
+
+    return (
+        <ManagementPanel title="Hero Banner ทั้งหมด" onAddNew={handleAdd}>
+            <div className="divide-y divide-gray-200">{slides.map(s => (<div key={s.id} className="p-4 flex items-center justify-between">
+                <div className="flex items-center"><img src={s.image} className="w-24 h-12 object-cover rounded-md mr-4" /><div className="text-sm font-medium">{s.titleLine1} {s.titleLine2}</div></div>
+                <div className="flex items-center"><button onClick={() => handleEdit(s)} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit className="w-5 h-5" /></button><button onClick={() => onDelete(s.id)} className="text-red-600 hover:text-red-900"><Trash2 className="w-5 h-5" /></button></div></div>))}
+            </div>
+             {modalOpen && <HeroSlideForm slide={editingSlide} onSave={handleSave} onClose={handleClose} />}
+        </ManagementPanel>
+    );
+};
+
+const HeroSlideForm: React.FC<{ slide: HeroSlide | null, onSave: (s: HeroSlide) => void, onClose: () => void }> = ({ slide, onSave, onClose }) => {
+    const [formState, setFormState] = useState<Omit<HeroSlide, 'id'>>({ image: '', titleLine1: '', titleLine2: '', titleLine3: '', cta: '', ...slide });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormState({ ...formState, [e.target.name]: e.target.value });
+    const handleImageChange = (base64: string) => setFormState({ ...formState, image: base64 });
+    const handleSave = () => onSave({ ...formState, id: slide?.id || 0 });
+
+    return <Modal title={slide ? 'แก้ไขสไลด์' : 'เพิ่มสไลด์ใหม่'} onClose={onClose}>
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <ImageUpload label="ภาพพื้นหลัง" currentImages={formState.image ? [formState.image] : []} onImagesChange={imgs => handleImageChange(imgs[0] || '')} maxImages={1} />
+            <FormInput label="ข้อความบรรทัดที่ 1" name="titleLine1" value={formState.titleLine1} onChange={handleChange} />
+            <FormInput label="ข้อความบรรทัดที่ 2" name="titleLine2" value={formState.titleLine2} onChange={handleChange} />
+            <FormInput label="ข้อความบรรทัดที่ 3" name="titleLine3" value={formState.titleLine3} onChange={handleChange} />
+            <FormInput label="ข้อความบนปุ่ม (CTA)" name="cta" value={formState.cta} onChange={handleChange} />
+        </FormWrapper>
+    </Modal>;
+};
+
+const ComputerSetManagement: React.FC<{ groups: ComputerSetGroup[], onSave: (g: ComputerSetGroup) => void, onDelete: (id: number) => void }> = ({ groups, onSave, onDelete }) => {
+    const [openGroupId, setOpenGroupId] = useState<number | null>(null);
+    const [editingGroup, setEditingGroup] = useState<ComputerSetGroup | null>(null);
+    const [editingProduct, setEditingProduct] = useState<{group: ComputerSetGroup, product: ComputerSetProduct | null} | null>(null);
+    
+    const handleGroupSave = (group: ComputerSetGroup) => { onSave(group); setEditingGroup(null); };
+    const handleProductSave = (product: ComputerSetProduct) => {
+        if (!editingProduct) return;
+        const { group } = editingProduct;
+        const exists = group.products.some(p => p.id === product.id);
+        const newProducts = exists
+            ? group.products.map(p => p.id === product.id ? product : p)
+            : [...group.products, { ...product, id: Date.now() }];
+        onSave({ ...group, products: newProducts });
+        setEditingProduct(null);
+    };
+
+    return (
+        <ManagementPanel title="คอมเซ็ตทั้งหมด" onAddNew={() => setEditingGroup({id: 0, bannerUrl: '', products: []})}>
+            <div className="space-y-2 p-2">{groups.map(g => (<div key={g.id} className="border rounded-lg overflow-hidden">
+                <button onClick={() => setOpenGroupId(openGroupId === g.id ? null : g.id)} className="w-full p-3 bg-gray-50 flex justify-between items-center hover:bg-gray-100">
+                    <img src={g.bannerUrl} alt="banner" className="h-12 object-contain rounded"/>
+                    <div className="flex items-center gap-4">
+                        <button onClick={(e) => { e.stopPropagation(); setEditingGroup(g); }} className="text-indigo-600"><Edit size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); onDelete(g.id); }} className="text-red-600"><Trash2 size={18}/></button>
+                        {openGroupId === g.id ? <ChevronUp /> : <ChevronDown />}
+                    </div>
+                </button>
+                {openGroupId === g.id && (<div className="p-4 border-t">
+                    <button onClick={() => setEditingProduct({ group: g, product: null })} className="mb-4 flex items-center bg-blue-500 text-white text-sm font-bold py-1.5 px-3 rounded-md hover:bg-blue-600"><PlusCircle size={16} className="mr-2"/>เพิ่มสินค้าในเซ็ต</button>
+                    <div className="space-y-3">
+                        {g.products.map(p => (
+                            <div key={p.id} className="flex flex-col sm:flex-row justify-between sm:items-center bg-white p-3 border rounded-md gap-2">
+                                <div className="flex items-center gap-3">
+                                    <img src={p.imageUrls[0]} alt={p.name} className="w-12 h-12 object-contain rounded flex-shrink-0"/>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                                        <p className="text-sm font-bold text-orange-600">{p.price.toLocaleString()} บาท</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 self-end sm:self-center">
+                                    <button onClick={() => setEditingProduct({ group: g, product: p })} className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full"><Edit size={16}/></button>
+                                    <button onClick={() => onSave({...g, products: g.products.filter(prod => prod.id !== p.id)})} className="p-2 text-red-600 hover:bg-gray-100 rounded-full"><Trash2 size={16}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>)}
+            </div>))}</div>
+            {editingGroup && <ComputerSetGroupForm group={editingGroup} onSave={handleGroupSave} onClose={() => setEditingGroup(null)} />}
+            {editingProduct && <ComputerSetProductForm product={editingProduct.product} onSave={handleProductSave} onClose={() => setEditingProduct(null)} />}
+        </ManagementPanel>
+    );
+};
+
+const ComputerSetGroupForm: React.FC<{ group: ComputerSetGroup | null, onSave: (g: ComputerSetGroup) => void, onClose: () => void }> = ({ group, onSave, onClose }) => {
+    const [formState, setFormState] = useState(group);
+    const handleImageChange = (base64: string) => formState && setFormState({ ...formState, bannerUrl: base64 });
+    const handleSave = () => formState && onSave(formState);
+    if (!formState) return null;
+
+    return <Modal title={group?.id ? 'แก้ไขกลุ่มคอมเซ็ต' : 'เพิ่มกลุ่มคอมเซ็ตใหม่'} onClose={onClose}>
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <ImageUpload label="Banner" currentImages={formState.bannerUrl ? [formState.bannerUrl] : []} onImagesChange={(imgs) => handleImageChange(imgs[0] || '')} maxImages={1} />
+        </FormWrapper>
+    </Modal>
+};
+
+const ComputerSetProductForm: React.FC<{ product: ComputerSetProduct | null, onSave: (p: ComputerSetProduct) => void, onClose: () => void }> = ({ product, onSave, onClose }) => {
+    const defaultSpecs: ComputerSetSpecs = { cpu: '', vga: '', ram: '', storage: '', motherboard: '', psu: '', case: '', cooling: '', notes: '' };
+    
+    const initialState = {
+        name: '',
+        price: 0,
+        oldPrice: 0,
+        imageUrls: [],
+        badge: undefined,
+        ...product,
+        specs: {
+            ...defaultSpecs,
+            ...(product?.specs || {}),
+        },
+    };
+    
+    const [formState, setFormState] = useState<Omit<ComputerSetProduct, 'id'>>(initialState);
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        const isSpecField = Object.keys(defaultSpecs).includes(name);
+
+        if (isSpecField) {
+             setFormState(prev => ({
+                ...prev,
+                specs: { ...prev.specs, [name]: value }
+             }));
+        } else {
+             setFormState(prev => ({
+                ...prev,
+                [name]: (name === 'price' || name === 'oldPrice') ? parseFloat(value) || 0 : value
+             }));
+        }
+    };
+    
+    const handleImagesChange = (images: string[]) => setFormState({ ...formState, imageUrls: images });
+    const handleSave = () => onSave({ ...formState, id: product?.id || 0 });
+
+    const specFields: { key: keyof ComputerSetSpecs, label: string }[] = [
+        { key: 'cpu', label: 'CPU' },
+        { key: 'ram', label: 'RAM' },
+        { key: 'vga', label: 'VGA (การ์ดจอ)' },
+        { key: 'storage', label: 'Storage (SSD/HDD)' },
+        { key: 'motherboard', label: 'Motherboard' },
+        { key: 'psu', label: 'Power Supply (PSU)' },
+        { key: 'case', label: 'Case' },
+        { key: 'cooling', label: 'Cooling (ชุดระบายความร้อน)' },
+    ];
+
+    return <Modal title={product ? 'แก้ไขสินค้าในเซ็ต' : 'เพิ่มสินค้าในเซ็ต'} onClose={onClose} size="2xl">
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <FormInput label="ชื่อสินค้า" name="name" value={formState.name} onChange={handleChange} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput label="ราคาปัจจุบัน" name="price" type="number" value={formState.price} onChange={handleChange} />
+                <FormInput label="ราคาเดิม (ไม่จำเป็น)" name="oldPrice" type="number" value={formState.oldPrice || ''} onChange={handleChange} required={false} />
+            </div>
+            <ImageUpload label="รูปสินค้า" currentImages={formState.imageUrls} onImagesChange={handleImagesChange} />
+            
+            <h3 className="text-lg font-semibold text-gray-800 pt-4 border-t mt-4">ส่วนประกอบ (Specs)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {specFields.map(field => (
+                    <FormInput 
+                        key={field.key}
+                        label={field.label}
+                        name={field.key}
+                        value={formState.specs[field.key]}
+                        onChange={handleChange}
+                        required={false}
+                    />
+                ))}
+            </div>
+            <FormInput 
+                label="หมายเหตุ (Notes)"
+                name="notes"
+                value={formState.specs.notes || ''}
+                onChange={handleChange}
+                required={false}
+                as="textarea"
+            />
+        </FormWrapper>
+    </Modal>;
+};
+
+const pageNames: Record<SeoEditablePage, string> = {
+    home: 'หน้าแรก',
+    pcBuilder: 'จัดสเปคคอม',
+    computerSet: 'คอมพิวเตอร์เซต',
+    articles: 'บทความ',
+    promotions: 'โปรโมชั่น',
+    contact: 'ติดต่อเรา',
+    about: 'เกี่ยวกับเรา',
+    cart: 'ตะกร้าสินค้า',
+    checkout: 'ชำระเงิน',
+    corporate: 'บริการสำหรับองค์กร',
+    faq: 'คำถามที่พบบ่อย (FAQ)',
+    orderStatus: 'สถานะคำสั่งซื้อ',
+    searchResults: 'ผลการค้นหา',
+    compare: 'เปรียบเทียบสินค้า',
+    allProducts: 'สินค้าทั้งหมด',
+    privacy: 'นโยบายความเป็นส่วนตัว',
+    terms: 'ข้อกำหนดและเงื่อนไขการใช้งาน',
+    cookies: 'นโยบายคุกกี้',
+    shipping: 'นโยบายการจัดส่ง',
+    returns: 'นโยบายการคืนสินค้า',
+    careers: 'ร่วมงานกับเรา (Careers)',
+    cpu: 'ซีพียู (CPU)',
+    gpu: 'การ์ดจอ (GPU)',
+    ram: 'แรม (RAM)',
+    motherboard: 'เมนบอร์ด (Motherboard)',
+    storage: 'อุปกรณ์จัดเก็บข้อมูล (Storage)',
+    case: 'เคส (Case)',
+    cooling: 'ชุดระบายความร้อน (Cooling)',
+    powerSupply: 'พาวเวอร์ซัพพลาย (PSU)',
+    network: 'อุปกรณ์เน็ตเวิร์ค (Network)',
+    software: 'ซอฟต์แวร์ (Software)',
+    server: 'เซิร์ฟเวอร์ (Server)',
+    gamingGear: 'เกมมิ่งเกียร์ (Gaming Gear)',
+    desktopComputer: 'คอมพิวเตอร์ตั้งโต๊ะ (Desktop Computer)',
+    aioComputer: 'คอมพิวเตอร์ AIO (All-in-one PC)',
+    printer: 'ปริ้นเตอร์ (Printer)',
+};
+
+const SeoManagement: React.FC<{ seoData: SeoData, onSave: (data: SeoData) => void }> = ({ seoData, onSave }) => {
+    const [localData, setLocalData] = useState<SeoData>(seoData);
+    const { addToast } = useToast();
+
+    useEffect(() => { setLocalData(seoData); }, [seoData]);
+
+    const handleChange = (page: SeoEditablePage, field: 'title' | 'description', value: string) => {
+        setLocalData(prev => ({ ...prev, [page]: { ...prev[page], [field]: value } }));
+    };
+    
+    const handleSave = () => { onSave(localData); addToast('บันทึกข้อมูล SEO เรียบร้อยแล้ว', 'success'); };
+
+    return (
+        <ManagementPanel title="จัดการ SEO & META">
+          <div className="flex flex-col">
+            <div className="p-4 sm:p-6 lg:p-8 space-y-8 flex-grow">
+                {(Object.keys(pageNames) as (keyof typeof pageNames)[]).map(pageKey => (
+                    <div key={pageKey} className="p-4 border rounded-lg bg-gray-50/80 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b">{pageNames[pageKey]}</h3>
+                        <div className="space-y-4">
+                            <FormInput label="Meta Title" name={`${pageKey}-title`} value={localData[pageKey]?.title || ''} onChange={(e) => handleChange(pageKey, 'title', e.target.value)} />
+                            <FormInput label="Meta Description" name={`${pageKey}-description`} value={localData[pageKey]?.description || ''} onChange={(e) => handleChange(pageKey, 'description', e.target.value)} as="textarea" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="p-4 sm:p-6 lg:p-8 border-t bg-white/80 backdrop-blur-sm sticky bottom-0 flex justify-end items-center gap-4">
+                <button onClick={handleSave} className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors">บันทึกการเปลี่ยนแปลงทั้งหมด</button>
+            </div>
+          </div>
+        </ManagementPanel>
+    );
+};
+
+const CategoryPageManagement: React.FC<{ data: AllCategoryPageData, onSave: (data: AllCategoryPageData) => void }> = ({ data, onSave }) => {
+    const [localData, setLocalData] = useState<AllCategoryPageData>(data);
+    const { addToast } = useToast();
+
+    useEffect(() => { setLocalData(data); }, [data]);
+
+    const handleBannerChange = (page: ProductCategory, url: string) => {
+        setLocalData(prev => ({ ...prev, [page]: { ...prev[page], bannerUrl: url } }));
+    };
+    
+    const handleSave = () => { onSave(localData); addToast('บันทึกแบนเนอร์หน้าหมวดหมู่เรียบร้อยแล้ว', 'success'); };
+
+    return (
+        <ManagementPanel title="จัดการแบนเนอร์หน้าหมวดหมู่">
+          <div className="flex flex-col">
+            <div className="p-4 sm:p-6 lg:p-8 space-y-8 flex-grow">
+                {(Object.keys(categoryConfigurations) as ProductCategory[]).map(pageKey => (
+                    <div key={pageKey} className="p-4 border rounded-lg bg-gray-50/80 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">{categoryConfigurations[pageKey].title}</h3>
+                        <ImageUpload label="แบนเนอร์โปรโมชั่น" currentImages={localData[pageKey]?.bannerUrl ? [localData[pageKey]?.bannerUrl] : []} onImagesChange={(base64) => handleBannerChange(pageKey, base64[0] || '')} maxImages={1} />
+                    </div>
+                ))}
+            </div>
+            <div className="p-4 sm:p-6 lg:p-8 border-t bg-white/80 backdrop-blur-sm sticky bottom-0 flex justify-end">
+                <button onClick={handleSave} className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors">บันทึกการเปลี่ยนแปลงทั้งหมด</button>
+            </div>
+          </div>
+        </ManagementPanel>
+    );
+};
+
+const DiscountManagement: React.FC<{ codes: DiscountCode[], onSave: (code: DiscountCode) => void, onDelete: (id: number) => void }> = ({ codes, onSave, onDelete }) => {
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingCode, setEditingCode] = useState<DiscountCode | null>(null);
+
+    const handleEdit = (code: DiscountCode) => { setEditingCode(code); setModalOpen(true); };
+    const handleAdd = () => { setEditingCode(null); setModalOpen(true); };
+    const handleClose = () => setModalOpen(false);
+    const handleSave = (code: DiscountCode) => { onSave(code); handleClose(); };
+    
+    return (
+        <ManagementPanel title="โค้ดส่วนลดทั้งหมด" onAddNew={handleAdd}>
+            {/* Mobile View */}
+            <div className="md:hidden divide-y divide-gray-200">
+                {codes.map(c => (
+                    <div key={c.id} className="p-4 flex justify-between items-start gap-4">
+                        <div className="flex-grow">
+                            <p className="font-bold text-gray-900">{c.code}</p>
+                            <p className="text-sm text-gray-600">{c.type === 'percentage' ? `ลด ${c.value}%` : `ลด ${c.value} บาท`}</p>
+                            <span className={`mt-1 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${c.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                {c.isActive ? 'ใช้งานได้' : 'ไม่ใช้งาน'}
+                            </span>
+                        </div>
+                        <div className="flex items-center flex-shrink-0 ml-2">
+                            <button onClick={() => handleEdit(c)} className="p-2 text-indigo-600 hover:bg-gray-100 rounded-full"><Edit className="w-5 h-5" /></button>
+                            <button onClick={() => onDelete(c.id)} className="p-2 text-red-600 hover:bg-gray-100 rounded-full"><Trash2 className="w-5 h-5" /></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {/* Desktop View */}
+            <div className="overflow-x-auto hidden md:block">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50"><tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">โค้ด</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ประเภท</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">มูลค่า</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                    </tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">{codes.map(c => (<tr key={c.id}>
+                        <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-bold text-gray-900">{c.code}</div></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{c.type === 'percentage' ? 'เปอร์เซ็นต์' : 'จำนวนเต็ม'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{c.type === 'percentage' ? `${c.value}%` : `${c.value} บาท`}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${c.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{c.isActive ? 'ใช้งานได้' : 'ไม่ใช้งาน'}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button onClick={() => handleEdit(c)} className="text-indigo-600 hover:text-indigo-900 mr-4"><Edit className="w-5 h-5" /></button><button onClick={() => onDelete(c.id)} className="text-red-600 hover:text-red-900"><Trash2 className="w-5 h-5" /></button></td></tr>))}
+                    </tbody>
+                </table>
+            </div>
+            {modalOpen && <DiscountForm code={editingCode} onSave={handleSave} onClose={handleClose} />}
+        </ManagementPanel>
+    );
+};
+
+const DiscountForm: React.FC<{ code: DiscountCode | null, onSave: (d: DiscountCode) => void, onClose: () => void }> = ({ code, onSave, onClose }) => {
+    const [formState, setFormState] = useState<Omit<DiscountCode, 'id'>>({ code: '', type: 'percentage', value: 0, isActive: true, ...code });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value, type } = e.target;
+        if (type === 'checkbox') {
+            const { checked } = e.target as HTMLInputElement;
+            setFormState({ ...formState, [name]: checked });
+        } else {
+            setFormState({ ...formState, [name]: (name === 'value') ? parseFloat(value) : value });
+        }
+    };
+    const handleSave = () => onSave({ ...formState, id: code?.id || 0 });
+
+    return <Modal title={code ? 'แก้ไขโค้ดส่วนลด' : 'เพิ่มโค้ดส่วนลดใหม่'} onClose={onClose}>
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <FormInput label="โค้ด" name="code" value={formState.code} onChange={handleChange} />
+            <div>
+                <label htmlFor="type" className="block text-sm font-medium text-gray-700">ประเภท</label>
+                <select name="type" id="type" value={formState.type} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500">
+                    <option value="percentage">เปอร์เซ็นต์</option>
+                    <option value="fixed">จำนวนเต็ม (บาท)</option>
+                </select>
+            </div>
+            <FormInput label="มูลค่า" name="value" type="number" value={formState.value} onChange={handleChange} />
+            <div className="flex items-center">
+                <input id="isActive" name="isActive" type="checkbox" checked={formState.isActive} onChange={handleChange} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">เปิดใช้งาน</label>
+            </div>
+        </FormWrapper>
+    </Modal>;
+};
+
+const OrderDetailModal: React.FC<{ order: AdminOrder, onClose: () => void, onSave: (order: AdminOrder) => void }> = ({ order, onClose, onSave }) => {
+    const [status, setStatus] = useState<AdminOrderStatus>(order.status);
+    const [trackingNumber, setTrackingNumber] = useState<string>(order.trackingNumber || '');
+    const [carrier, setCarrier] = useState<string>(order.carrier || '');
+    const { addToast } = useToast();
+
+    const handleSave = () => {
+        const orderToSave: AdminOrder = { ...order, status };
+        if (status === 'Shipped') {
+            orderToSave.trackingNumber = trackingNumber;
+            orderToSave.carrier = carrier;
+        }
+        onSave(orderToSave);
+        addToast(`อัปเดตสถานะคำสั่งซื้อ #${order.orderNumber} เป็น "${status}"`, 'success');
+        onClose();
+    };
+    
+    const formatCurrency = (amount: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+    
+    const statusOptions: AdminOrderStatus[] = ['Pending', 'Processing', 'Shipped', 'Completed', 'Cancelled'];
+
+    return (
+        <Modal title={`รายละเอียดคำสั่งซื้อ #${order.orderNumber}`} onClose={onClose} size="4xl">
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Customer Info */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-lg mb-2">ข้อมูลลูกค้า</h4>
+                        <p><strong>ชื่อ:</strong> {order.customer.name}</p>
+                        <p><strong>ที่อยู่:</strong> {`${order.customer.address}, ${order.customer.district}, ${order.customer.province} ${order.customer.zipcode}`}</p>
+                        <p><strong>โทรศัพท์:</strong> {order.customer.phone}</p>
+                        <p><strong>อีเมล:</strong> {order.customer.email}</p>
+                    </div>
+                    {/* Order Info */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                        <h4 className="font-bold text-lg mb-2">ข้อมูลคำสั่งซื้อ</h4>
+                        <p><strong>หมายเลข:</strong> {order.orderNumber}</p>
+                        <p><strong>วันที่:</strong> {new Date(order.date).toLocaleString('th-TH')}</p>
+                        <div className="mt-2">
+                             <label htmlFor="status" className="block text-sm font-medium text-gray-700">อัปเดตสถานะ</label>
+                             <select 
+                                id="status" 
+                                value={status}
+                                onChange={e => setStatus(e.target.value as AdminOrderStatus)}
+                                className="mt-1 block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                             >
+                                 {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                             </select>
+                        </div>
+                        {status === 'Shipped' && (
+                            <div className="mt-4 space-y-2 animate-fade-in">
+                                <div>
+                                    <label htmlFor="carrier" className="block text-sm font-medium text-gray-700">บริษัทขนส่ง</label>
+                                    <input 
+                                        type="text" 
+                                        id="carrier"
+                                        value={carrier}
+                                        onChange={e => setCarrier(e.target.value)}
+                                        placeholder="เช่น Kerry Express, Flash"
+                                        className="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="trackingNumber" className="block text-sm font-medium text-gray-700">หมายเลขพัสดุ</label>
+                                    <input 
+                                        type="text" 
+                                        id="trackingNumber"
+                                        value={trackingNumber}
+                                        onChange={e => setTrackingNumber(e.target.value)}
+                                        placeholder="TH123456789"
+                                        className="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Items List */}
+                <div>
+                    <h4 className="font-bold text-lg mb-2">รายการสินค้า</h4>
+                    <div className="border rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                             <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">ราคา/หน่วย</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">จำนวน</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">รวม</th>
+                                </tr>
+                            </thead>
+                             <tbody className="bg-white divide-y divide-gray-200">
+                                {order.items.map(item => (
+                                    <tr key={item.id}>
+                                        <td className="px-4 py-2"><div className="flex items-center gap-3"><img src={item.imageUrls[0]} className="w-10 h-10 object-contain"/><span className="text-sm font-medium">{item.name}</span></div></td>
+                                        <td className="px-4 py-2 text-right text-sm">{formatCurrency(item.price)}</td>
+                                        <td className="px-4 py-2 text-right text-sm">{item.quantity}</td>
+                                        <td className="px-4 py-2 text-right text-sm font-semibold">{formatCurrency(item.price * item.quantity)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                {/* Totals */}
+                <div className="flex justify-end">
+                    <div className="w-full md:w-1/2 lg:w-1/3 space-y-2">
+                        <div className="flex justify-between"><span className="text-gray-600">ยอดรวมสินค้า:</span> <span>{formatCurrency(order.total)}</span></div>
+                        <div className="flex justify-between text-red-600"><span>ส่วนลด:</span> <span className="text-red-600">- {formatCurrency(order.discount)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">ค่าจัดส่ง:</span> <span>{formatCurrency(order.shipping)}</span></div>
+                        <div className="flex justify-between font-bold text-lg text-gray-800 border-t pt-2 mt-2"><span className="text-gray-800">ยอดรวมสุทธิ:</span> <span className="text-orange-600">{formatCurrency(order.grandTotal)}</span></div>
+                    </div>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                    <button onClick={handleSave} className="bg-orange-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-orange-600">บันทึกการเปลี่ยนแปลง</button>
+                </div>
+            </div>
+        </Modal>
+    )
+};
+
+const OrderManagement: React.FC<{ orders: AdminOrder[], onSave: (o: AdminOrder) => void, onDelete: (id: number) => void }> = ({ orders, onSave, onDelete }) => {
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+
+    const handleViewDetails = (order: AdminOrder) => {
+        setSelectedOrder(order);
+        setIsDetailModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsDetailModalOpen(false);
+        setSelectedOrder(null);
+    };
+
+    const statusColors: Record<AdminOrderStatus, string> = {
+        Pending: 'bg-yellow-100 text-yellow-800',
+        Processing: 'bg-blue-100 text-blue-800',
+        Shipped: 'bg-purple-100 text-purple-800',
+        Completed: 'bg-green-100 text-green-800',
+        Cancelled: 'bg-red-100 text-red-800',
+    };
+    
+    const sortedOrders = useMemo(() => [...orders].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [orders]);
+
+    return (
+        <ManagementPanel title="รายการคำสั่งซื้อ">
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ลูกค้า</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">วันที่</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ยอดรวม</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สถานะ</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {sortedOrders.map(order => (
+                            <tr key={order.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.orderNumber}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{order.customer.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(order.date).toLocaleDateString('th-TH')}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(order.grandTotal)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[order.status]}`}>
+                                        {order.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button onClick={() => handleViewDetails(order)} className="text-indigo-600 hover:text-indigo-900">ดูรายละเอียด</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {isDetailModalOpen && selectedOrder && (
+                <OrderDetailModal order={selectedOrder} onClose={handleCloseModal} onSave={onSave} />
+            )}
+        </ManagementPanel>
+    );
+};
+
+// Careers Page Forms and Management
+const SectionEditor: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <button
+                className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+                {isOpen ? <ChevronUp /> : <ChevronDown />}
+            </button>
+            {isOpen && <div className="p-4 md:p-6 space-y-6">{children}</div>}
+        </div>
+    );
+};
+
+const JobOpeningForm: React.FC<{ job: JobOpening | null, onSave: (j: JobOpening) => void, onClose: () => void }> = ({ job, onSave, onClose }) => {
+    const [formState, setFormState] = useState<Omit<JobOpening, 'id'>>({ title: '', location: '', type: 'Full-time', description: '', salary: '', isActive: true, ...job });
+    
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value, type } = e.target;
+        if (type === 'checkbox') {
+            const { checked } = e.target as HTMLInputElement;
+            setFormState({ ...formState, [name]: checked });
+        } else {
+            setFormState({ ...formState, [name]: value });
+        }
+    };
+
+    const handleSave = () => onSave({ ...formState, id: job?.id || Date.now() });
+
+    return <Modal title={job ? 'แก้ไขตำแหน่งงาน' : 'เพิ่มตำแหน่งงานใหม่'} onClose={onClose} size="2xl">
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <FormInput label="ชื่อตำแหน่ง" name="title" value={formState.title} onChange={handleChange} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput label="สถานที่" name="location" value={formState.location} onChange={handleChange} />
+                 <FormInput label="เงินเดือน (เช่น 20,000-30,000 บาท, หรือ ตามตกลง)" name="salary" value={formState.salary || ''} onChange={handleChange} required={false} />
+            </div>
+            <div>
+                <label htmlFor="type" className="block text-sm font-medium text-gray-700">ประเภท</label>
+                <select name="type" id="type" value={formState.type} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500">
+                    <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option>
+                </select>
+            </div>
+            <FormInput label="คำอธิบาย" name="description" value={formState.description} onChange={handleChange} as="textarea" />
+             <div className="flex items-center">
+                <input id="isActive" name="isActive" type="checkbox" checked={formState.isActive} onChange={handleChange} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
+                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">เปิดรับสมัครตำแหน่งนี้</label>
+            </div>
+        </FormWrapper>
+    </Modal>;
+};
+
+const FeatureCardForm: React.FC<{ feature: CareersFeatureCard | null, onSave: (f: CareersFeatureCard) => void, onClose: () => void }> = ({ feature, onSave, onClose }) => {
+    const [formState, setFormState] = useState<Omit<CareersFeatureCard, 'id'>>({ icon: 'Users', title: '', description: '', ...feature });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setFormState({ ...formState, [e.target.name]: e.target.value });
+    const handleSave = () => onSave({ ...formState, id: feature?.id || Date.now() });
+
+    return <Modal title={feature ? 'แก้ไขคุณสมบัติ' : 'เพิ่มคุณสมบัติใหม่'} onClose={onClose} size="lg">
+        <FormWrapper onSave={handleSave} onCancel={onClose}>
+            <FormInput label="หัวข้อ" name="title" value={formState.title} onChange={handleChange} />
+            <div>
+                <label htmlFor="icon" className="block text-sm font-medium text-gray-700">ไอคอน</label>
+                <select name="icon" id="icon" value={formState.icon} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500">
+                    <option value="Users">Users</option>
+                    <option value="TrendingUp">TrendingUp</option>
+                    <option value="Coffee">Coffee</option>
+                </select>
+            </div>
+            <FormInput label="คำอธิบาย" name="description" value={formState.description} onChange={handleChange} as="textarea" />
+        </FormWrapper>
+    </Modal>;
+};
+
+const CareersManagement: React.FC<{ content: CareersPageContent, onSave: (newContent: CareersPageContent) => void }> = ({ content, onSave }) => {
+    const [localContent, setLocalContent] = useState<CareersPageContent>(content);
+    const [editingFeature, setEditingFeature] = useState<CareersFeatureCard | null>(null);
+    const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
+    const [editingJob, setEditingJob] = useState<JobOpening | null>(null);
+    const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+    const { addToast } = useToast();
+
+    useEffect(() => {
+        setLocalContent(content);
+    }, [content]);
+
+    const handleSave = () => { onSave(localContent); addToast('บันทึกข้อมูลหน้าสมัครงานเรียบร้อยแล้ว', 'success'); };
+
+    const handleSimpleChange = (section: keyof CareersPageContent, field: string, value: any) => {
+        setLocalContent(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+    };
+
+    // FIX: Added missing return statement for the React component. The function previously returned void, causing a type error.
+    return (
+        <ManagementPanel title="จัดการหน้าสมัครงาน (Careers)">
+            <div className="flex flex-col">
+                <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex-grow">
+                    <SectionEditor title="Hero Section">
+                        <FormInput label="Title" name="hero-title" value={localContent.hero.title} onChange={(e) => handleSimpleChange('hero', 'title', e.target.value)} />
+                        <FormInput label="Subtitle" name="hero-subtitle" value={localContent.hero.subtitle} onChange={(e) => handleSimpleChange('hero', 'subtitle', e.target.value)} />
+                    </SectionEditor>
+
+                    <SectionEditor title="Why Us Section">
+                        <FormInput label="Title" name="whyUs-title" value={localContent.whyUs.title} onChange={(e) => handleSimpleChange('whyUs', 'title', e.target.value)} />
+                        <FormInput label="Subtitle" name="whyUs-subtitle" value={localContent.whyUs.subtitle} onChange={(e) => handleSimpleChange('whyUs', 'subtitle', e.target.value)} />
+                        <h4 className="font-semibold mt-4">Features</h4>
+                        {localContent.whyUs.features.map((feature) => (
+                        <div key={feature.id} className="p-3 border rounded-md relative bg-gray-50/50">
+                            <p className="font-medium">{feature.title}</p>
+                            <p className="text-sm text-gray-600">{feature.description}</p>
+                            <div className="absolute top-2 right-2 flex gap-2">
+                            <button onClick={() => { setEditingFeature(feature); setIsFeatureModalOpen(true); }} className="p-1 text-indigo-600 hover:bg-indigo-100 rounded-full"><Edit size={16}/></button>
+                            <button onClick={() => {
+                                if (window.confirm('Are you sure?')) {
+                                setLocalContent(prev => ({...prev, whyUs: {...prev.whyUs, features: prev.whyUs.features.filter(f => f.id !== feature.id)}}));
+                                }
+                            }} className="p-1 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16}/></button>
+                            </div>
+                        </div>
+                        ))}
+                        <button onClick={() => { setEditingFeature(null); setIsFeatureModalOpen(true); }} className="mt-2 flex items-center bg-blue-500 text-white text-sm font-bold py-1.5 px-3 rounded-md hover:bg-blue-600"><PlusCircle size={16} className="mr-2"/>เพิ่ม Feature</button>
+                    </SectionEditor>
+
+                    <SectionEditor title="Job Openings Section">
+                        <FormInput label="Title" name="openings-title" value={localContent.openings.title} onChange={(e) => handleSimpleChange('openings', 'title', e.target.value)} />
+                        <FormInput label="Subtitle" name="openings-subtitle" value={localContent.openings.subtitle} onChange={(e) => handleSimpleChange('openings', 'subtitle', e.target.value)} />
+                        <h4 className="font-semibold mt-4">Jobs</h4>
+                        {localContent.openings.jobs.map((job) => (
+                        <div key={job.id} className="p-3 border rounded-md relative bg-gray-50/50">
+                            <p className="font-medium">{job.title} {job.isActive ? '(Active)' : '(Inactive)'}</p>
+                            <p className="text-sm text-gray-600">{job.location} - {job.type}</p>
+                            <div className="absolute top-2 right-2 flex gap-2">
+                            <button onClick={() => { setEditingJob(job); setIsJobModalOpen(true); }} className="p-1 text-indigo-600 hover:bg-indigo-100 rounded-full"><Edit size={16}/></button>
+                            <button onClick={() => {
+                                if (window.confirm('Are you sure?')) {
+                                setLocalContent(prev => ({...prev, openings: {...prev.openings, jobs: prev.openings.jobs.filter(j => j.id !== job.id)}}));
+                                }
+                            }} className="p-1 text-red-600 hover:bg-red-100 rounded-full"><Trash2 size={16}/></button>
+                            </div>
+                        </div>
+                        ))}
+                        <button onClick={() => { setEditingJob(null); setIsJobModalOpen(true); }} className="mt-2 flex items-center bg-blue-500 text-white text-sm font-bold py-1.5 px-3 rounded-md hover:bg-blue-600"><PlusCircle size={16} className="mr-2"/>เพิ่มตำแหน่งงาน</button>
+                    </SectionEditor>
+
+                    <SectionEditor title="Call to Action (CTA) Section">
+                        <FormInput label="Title" name="cta-title" value={localContent.cta.title} onChange={(e) => handleSimpleChange('cta', 'title', e.target.value)} />
+                        <FormInput label="Subtitle" name="cta-subtitle" value={localContent.cta.subtitle} onChange={(e) => handleSimpleChange('cta', 'subtitle', e.target.value)} />
+                        <FormInput label="Email" name="cta-email" value={localContent.cta.email} onChange={(e) => handleSimpleChange('cta', 'email', e.target.value)} type="email"/>
+                    </SectionEditor>
+                </div>
+                <div className="p-4 sm:p-6 lg:p-8 border-t bg-white/80 backdrop-blur-sm sticky bottom-0 flex justify-end">
+                    <button onClick={handleSave} className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700">บันทึกการเปลี่ยนแปลงทั้งหมด</button>
+                </div>
+                {isFeatureModalOpen && <FeatureCardForm feature={editingFeature} onClose={() => setIsFeatureModalOpen(false)} onSave={(feature) => {
+                    const newFeatures = editingFeature ? localContent.whyUs.features.map(f => f.id === feature.id ? feature : f) : [...localContent.whyUs.features, feature];
+                    setLocalContent(prev => ({...prev, whyUs: {...prev.whyUs, features: newFeatures}}));
+                    setIsFeatureModalOpen(false);
+                }} />}
+                {isJobModalOpen && <JobOpeningForm job={editingJob} onClose={() => setIsJobModalOpen(false)} onSave={(job) => {
+                    const newJobs = editingJob ? localContent.openings.jobs.map(j => j.id === job.id ? job : j) : [...localContent.openings.jobs, job];
+                    setLocalContent(prev => ({...prev, openings: {...prev.openings, jobs: newJobs}}));
+                    setIsJobModalOpen(false);
+                }}/>}
+            </div>
+        </ManagementPanel>
+    );
+};
+
+
+export const AdminPage: React.FC<AdminPageProps> = ({
+  products, categories, articles, computerSetGroups, heroSlides, seoData, homepageContent, categoryPageData, discountCodes, adminOrders, careersPageContent,
+  onSaveProduct, onDeleteProduct, onSaveArticle, onDeleteArticle, onSaveHeroSlide, onDeleteHeroSlide,
+  onSaveComputerSetGroup, onDeleteComputerSetGroup, onSaveSeoData, onSaveHomepageContent, onSaveCategoryPageData,
+  onSaveDiscountCode, onDeleteDiscountCode, onSaveAdminOrder, onDeleteAdminOrder, onSaveCareersPageContent,
+  onResetAllData, onLogout,
+}) => {
+  const [activeSection, setActiveSection] = useState<AdminSection>('homepage');
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { addToast } = useToast();
+
+  const handleAddNewProduct = () => {
+    setEditingProduct(null);
+    setIsProductFormOpen(true);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setIsProductFormOpen(true);
+  };
+  
+  const handleDeleteProductConfirm = (id: number) => {
+    if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้?")) {
+      onDeleteProduct(id);
+      addToast('ลบสินค้าเรียบร้อยแล้ว', 'info');
+    }
+  };
+
+  const handleSaveProductAndClose = (product: Product) => {
+    onSaveProduct(product);
+    setIsProductFormOpen(false);
+    addToast(product.id ? 'แก้ไขสินค้าเรียบร้อยแล้ว' : 'เพิ่มสินค้าใหม่เรียบร้อยแล้ว', 'success');
+  };
+  
+  const menuItems: { id: AdminSection; name: string; icon: React.ReactNode }[] = [
+    { id: 'homepage', name: 'จัดการหน้าแรก', icon: <Home size={20} /> },
+    { id: 'products', name: 'สินค้าทั้งหมด', icon: <ShoppingBag size={20} /> },
+    { id: 'orders', name: 'รายการสั่งซื้อ', icon: <Package size={20} /> },
+    { id: 'computerSets', name: 'คอมเซ็ต', icon: <Tv size={20} /> },
+    { id: 'articles', name: 'บทความ', icon: <Newspaper size={20} /> },
+    { id: 'hero', name: 'Hero Banner', icon: <ImageIcon size={20} /> },
+    { id: 'seo', name: 'SEO', icon: <Globe size={20} /> },
+    { id: 'categoryPages', name: 'หน้าหมวดหมู่', icon: <LayoutGrid size={20} /> },
+    { id: 'discounts', name: 'โค้ดส่วนลด', icon: <Percent size={20} /> },
+    { id: 'careers', name: 'หน้าสมัครงาน', icon: <Briefcase size={20} /> },
+  ];
+  
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'homepage': return <HomepageManagement content={homepageContent} onSave={onSaveHomepageContent} />;
+      case 'products': return <ManagementPanel title="สินค้าทั้งหมด" onAddNew={handleAddNewProduct}><ProductManagement products={products} categories={categories} onEdit={handleEditProduct} onDelete={handleDeleteProductConfirm} /></ManagementPanel>;
+      case 'orders': return <OrderManagement orders={adminOrders} onSave={onSaveAdminOrder} onDelete={onDeleteAdminOrder} />;
+      case 'articles': return <ArticleManagement articles={articles} onSave={onSaveArticle} onDelete={onDeleteArticle} />;
+      case 'hero': return <HeroSlideManagement slides={heroSlides} onSave={onSaveHeroSlide} onDelete={onDeleteHeroSlide} />;
+      case 'computerSets': return <ComputerSetManagement groups={computerSetGroups} onSave={onSaveComputerSetGroup} onDelete={onDeleteComputerSetGroup} />;
+      case 'seo': return <SeoManagement seoData={seoData} onSave={onSaveSeoData} />;
+      case 'categoryPages': return <CategoryPageManagement data={categoryPageData} onSave={onSaveCategoryPageData} />;
+      case 'discounts': return <DiscountManagement codes={discountCodes} onSave={onSaveDiscountCode} onDelete={onDeleteDiscountCode} />;
+      case 'careers': return <CareersManagement content={careersPageContent} onSave={onSaveCareersPageContent} />;
+      default: return null;
+    }
+  };
+  
+  const SidebarContent = () => (
+     <nav className="flex flex-col p-4 space-y-2">
+        {menuItems.map(item => (
+            <button
+                key={item.id}
+                onClick={() => { setActiveSection(item.id); setIsMobileMenuOpen(false); }}
+                className={`flex items-center gap-3 w-full text-left p-3 rounded-md font-medium text-sm transition-colors ${activeSection === item.id ? 'bg-orange-100 text-orange-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+                {item.icon}
+                <span>{item.name}</span>
+            </button>
+        ))}
+    </nav>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+        <header className="bg-white shadow-sm sticky top-0 z-50">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                    <div className="flex items-center gap-4">
+                         <button className="lg:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                            <Menu size={24} />
+                        </button>
+                        <h1 className="text-xl font-bold text-gray-800">แผงควบคุมผู้ดูแลระบบ</h1>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={onResetAllData} className="flex items-center gap-2 text-sm font-medium text-yellow-600 hover:text-red-700 transition-colors">
+                            <AlertTriangle size={16} />
+                            <span className="hidden sm:inline">รีเซ็ตข้อมูล</span>
+                        </button>
+                        <button onClick={onLogout} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors">
+                            <LogOut size={16} />
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div className="flex">
+            {/* Desktop Sidebar */}
+            <aside className="hidden lg:block w-64 bg-white border-r h-[calc(100vh-4rem)] sticky top-16">
+                <SidebarContent />
+            </aside>
+            
+            {/* Mobile Sidebar */}
+            {isMobileMenuOpen && (
+                <>
+                <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
+                <aside className="fixed top-0 left-0 w-64 bg-white h-full z-40 lg:hidden transform transition-transform duration-300 ease-in-out" style={{transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)'}}>
+                    <div className="p-4 border-b flex justify-between items-center h-16">
+                        <h2 className="font-bold">เมนู</h2>
+                        <button onClick={() => setIsMobileMenuOpen(false)}><X/></button>
+                    </div>
+                    <SidebarContent />
+                </aside>
+                </>
+            )}
+
+            <main className="flex-1">
+                {renderSection()}
+            </main>
+        </div>
+      
+      {isProductFormOpen && (
+        <ProductForm 
+            isOpen={isProductFormOpen} 
+            onClose={() => setIsProductFormOpen(false)} 
+            onSave={handleSaveProductAndClose} 
+            product={editingProduct} 
+            categories={categories} 
+        />
+      )}
+    </div>
+  );
+};
